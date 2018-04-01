@@ -1,0 +1,248 @@
+################################################################################################################
+#	FUNCTION DEF
+################################################################################################################
+
+from selenium import webdriver
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import  Keys
+
+from bs4 import BeautifulSoup
+from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
+import pandas as pd
+import requests
+import lxml
+import lxml.html
+
+# here we are generating links of all pages that contain news related to aadhar
+def get_all_ndtv_pages_links():
+    import requests
+    params="text"
+    pg_num=2
+    list_links=[]
+    while(True):
+        params = "type=news&page=" + str(pg_num)+"&query=aadhar";
+        print(params)
+        url="https://www.ndtv.com/page/topic-load-more?"+params
+        #print(url)
+        pg_num=pg_num+1;  
+        response = requests.get(url)
+        if(response.text=='\n'):
+            break
+        else:
+            list_links.append(url)
+    return (list_links)
+
+# we are extracting all webpages using request so using requests and beautiful soup to get all href of articles
+def get_ndtv_articles_hyperlinks(links,news_articles_links):
+    for k in range(len(links)):
+        response1 = requests.get(links[k],headers=header,timeout=200)
+        if response1.status_code!=200:
+            print("ERROR"+ str(response1.status_code))
+        tree1=lxml.html.fromstring(response1.text)
+        elem1=tree1.xpath("//ul/li/p/a[@title]")
+        for link in elem1:
+            news_articles_links.append(link.attrib['href'])
+    return news_articles_links
+
+#scraping each page using requests and beautiful soup :
+
+def scrape_all_ndtv_news_gen(news_articles_link,ndtv_articles):
+    response2=requests.get(news_articles_link)
+    #response2.text
+    soup = BeautifulSoup(response2.content, 'html.parser')
+
+    source_link=news_articles_link
+
+    heading=soup.find('h1')
+    if heading is not None:
+        heading=heading.text
+    else:
+        heading="No Content"
+        print("No Content HEADING")
+        print(source_link)
+
+    if((soup.find('h2') is not None)):
+        desc = soup.find('h2',attrs={'class':['ins_descp','article__excerpt']})
+    else:
+        desc=soup.find('div',attrs={'class':'ins_descp'})
+    if desc is not None:
+        desc=desc.text
+    else:
+        desc="No Content"
+        #print("No Content DESC")
+        #print(source_link)
+
+
+    datetime=soup.find('span',attrs={'itemprop':'dateModified'})   
+    if datetime is None:
+        datetime=soup.find('span',attrs={'class':'article__pubdate'})
+        if datetime is not None:
+            datetime=datetime.text
+        else:
+            datetime="No Content"
+            print("No Content:Datetime")
+            print(source_link)    
+    else:
+        datetime=datetime.text
+    
+    news=[]
+    news_body=soup.find('div',attrs={'class':['ins_storybody','td-post-content','article__content mb_40']})
+    if news_body is None:
+        news_body=soup.find('div',attrs={'id':'ins_storybody'})
+        if news_body is None:
+            news="No Content"
+            print("No Content :BODY")
+            print(source_link)
+        else:
+            n=news_body.find_all('li')
+            for all_content in n:
+                #print(all_content.text)
+                news.append(all_content.text)
+    else:
+        news=news_body.text
+    
+    ndtv_articles.append(dict(Heading=heading,Description=desc,DateTime=datetime,SourceLink="NDTV",NewsBody=news))
+
+    return ndtv_articles
+
+
+#scraping each page using requests and beautiful soup :
+#https://everylifecounts.ndtv.com/excluded-neglected-forgotten-life-indians-dont-exist-14892
+def scrape_all_ndtv_news_type1(news_articles_link,ndtv_articles):
+
+    response2=requests.get(news_articles_link)
+    #response2.text
+    soup = BeautifulSoup(response2.content, 'html.parser')
+
+    source_link=news_articles_link
+
+    heading=soup.find('h1')
+    if heading is not None:
+        heading=heading.text
+    else:
+        heading="No Content"
+        print("No Content HEADING")
+        print(source_link)
+
+    desc="No Content"
+
+
+    datetime=soup.find('span',attrs={'class':'td-post-date td-post-date-no-dot'})   
+    if datetime is not None:
+        datetime=datetime.text
+    else:
+        datetime="No Content"
+        print("No Content:Datetime")
+        print(source_link)
+
+    news=[]
+    news_body=soup.find('div',attrs={'class':'td-post-content'})
+    if news_body is None:
+        news="No Content"
+        print("No Content :BODY")
+        print(source_link)
+    else:
+        news=news_body.text
+        
+    ndtv_articles.append(dict(Heading=heading,Description=desc,DateTime=datetime,SourceLink="NDTV",NewsBody=news))
+
+    return ndtv_articles
+
+#scraping each page using requests and beautiful soup :
+#https://gadgets.ndtv.com/360daily/features/airtel-vodafone-idea-respond-to-jio-offer-samsung-galaxy-s8-india-launch-date-and-more-your-360-dail-1681604
+def scrape_all_ndtv_news_type2(news_articles_link,ndtv_articles):
+
+    response2=requests.get(news_articles_link)
+    #response2.text
+    soup = BeautifulSoup(response2.content, 'html.parser')
+
+    source_link=news_articles_link
+
+
+    heading=soup.find('span',attrs={'id':'ContentPlaceHolder1_FullstoryCtrl_Stitle'})
+    if heading is not None:
+        heading=heading.text
+    else:
+        heading="No Content"
+        print("No Content HEADING")
+        print(source_link)
+
+    desc="No Content"
+
+
+    datetime=soup.find('span',attrs={'class':'dtreviewed'})   
+    if datetime is not None:
+        datetime=datetime.text
+    else:
+        datetime="No Content"
+        print("No Content:Datetime")
+        print(source_link)
+
+    news=[]
+    news_body=soup.find('div',attrs={'class':'content_text row description'})
+    if news_body is None:
+        news="No Content"
+        print("No Content :BODY")
+        print(source_link)
+    else:
+        news=news_body.text
+    ndtv_articles.append(dict(Heading=heading,Description=desc,DateTime=datetime,SourceLink="NDTV",NewsBody=news))
+
+    return ndtv_articles
+
+
+###############################################################################################################################
+#	RUNNING CMDS
+###############################################################################################################################
+
+
+main_url="http://archives.ndtv.com/"
+# we will add all different archive urls to this main url. At every archive url system will type aadhar and search info link relateds
+chrome_path="D:/5.0 New Setups/chromedriver_win32/chromedriver"
+header = {'User-Agent': 'Mozilla/58.0.2 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.167 Safari/537.36'}
+
+keyword_list= ["aadhar"]
+driver = webdriver.Chrome(executable_path=chrome_path)
+wait = WebDriverWait(driver, 20)
+driver.get(main_url)
+search_elemnt = driver.find_element_by_name('q')
+search_elemnt.send_keys(keyword_list[0])
+search_elemnt.send_keys(Keys.RETURN)
+
+result_element = wait.until(EC.presence_of_element_located((By.ID, 'insidetab')))
+elem1=driver.find_element_by_id("news")
+elem1.get_attribute('innerHTML') #you  will get all html content in this tag*/
+
+# below we are scraping all href tags of every news article from page 1
+news_articles_links=[]
+elem3=elem1.find_elements_by_xpath("//div/ul/li/p/a[@title]")
+elem3
+for elem in elem3:
+    news_articles_links.append(elem.get_attribute("href"))
+
+links_to_scrape=get_all_ndtv_pages_links()
+
+# we are gng to get links of articlices from all other webpages
+news_articles_links=get_ndtv_articles_hyperlinks(links_to_scrape,news_articles_links)
+
+ndtv_articles=[]
+ndtv_news=[]
+           
+#now we create files of indivodual articles
+for i in range(len(news_articles_links)):
+    if(news_articles_links[i].find("everylifecounts.ndtv.com")!=-1):
+        ndtv_articles=scrape_all_ndtv_news_type1(news_articles_links[i],ndtv_articles)
+    elif(news_articles_links[i].find("gadgets.ndtv.com")!=-1):
+        ndtv_articles=scrape_all_ndtv_news_type2(news_articles_links[i],ndtv_articles)
+    else:
+        ndtv_articles=scrape_all_ndtv_news_gen(news_articles_links[i],ndtv_articles)
+
+
+ndtv_news=pd.DataFrame(ndtv_articles)
+
+ndtv_news.to_csv('ndtv_news.csv')
+ndtv_news.to_pickle('ndtv_news_df.p')
+ndtv_news.NewsBody.to_pickle('ndtv_news_body.p')
+

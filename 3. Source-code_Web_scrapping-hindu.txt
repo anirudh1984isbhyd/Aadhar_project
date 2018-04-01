@@ -1,0 +1,185 @@
+################################################################################################################
+#	FUNCTION DEF
+################################################################################################################
+
+from selenium import webdriver
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import  Keys
+
+from bs4 import BeautifulSoup
+from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
+import pandas as pd
+import numpy as np
+import requests
+import lxml
+import lxml.html
+import re
+
+# here we are generating links of all pages that contain news related to aadhar
+def get_all_hindu_pages_links(driver):
+    elem_pgnum=driver.find_element_by_class_name("pagination")
+    page_elem=elem_pgnum.find_elements_by_xpath("./li/a")[-1]
+    last_pg_str=page_elem.get_attribute("href")
+    num=re.findall('\\b\\d+\\b',last_pg_str)
+    last_pgnum=int(num[0])
+    pg_num=2
+    list_links=[]
+    while(pg_num!=last_pgnum+1):
+        url= "http://www.thehindu.com/search/?order=DESC&page=" + str(pg_num)+"&q=aadhar&sort=publishdate";
+        print(url)
+        pg_num=pg_num+1;  
+        list_links.append(url)
+    return (list_links)
+
+# we are extracting all webpages using request so using requests and beautiful soup to get all href of articles
+def get_hindu_articles_hyperlinks(links,news_articles_links):
+    for k in range(len(links)):
+        response1 = requests.get(links[k],headers=header,timeout=200)
+        if response1.status_code!=200:
+            print("ERROR"+ str(response1.status_code))
+        soup = BeautifulSoup(response1.content, 'html.parser')
+        a1=soup.find_all("p",attrs={'class':'story-card-33-heading'})
+        for a in a1:
+            a2=a.find("a",href=True)
+            news_articles_links.append(a2['href'])
+
+    for length1 in range(len(news_articles_links)):
+    #print(length1)
+        if((news_articles_links[length1].find("migration_catalog")!=-1)):
+            del news_articles_links[length1]
+        if((news_articles_links[length1].find("videos")!=-1)):
+            del news_articles_links[length1]
+
+    return news_articles_links
+
+def scrape_all_hindu_news(news_articles_links,hindu_news):
+
+    for i in range(len(news_articles_links)):
+        if(i==121):
+            continue
+        elif(i==1520):
+            continue
+        else:
+            response2=requests.get(news_articles_links[i])
+            #response2.text
+            soup = BeautifulSoup(response2.content, 'html.parser')
+
+            source_link=news_articles_links[i]
+
+            #print(source_link)
+
+            heading=soup.find('h1')
+            if heading is not None:
+                heading=heading.text
+            else:
+                heading="No Content"
+                print(str(i)+"+No Content HEADING")
+                print(source_link)
+
+            #print(heading)
+            desc=soup.find('h2',attrs={'class':'intro'})
+
+            if desc is not None:
+                desc=desc.text
+            else:
+                desc="No Content"
+                #print(str(i)+"+No Content DESC")
+                #print(source_link)
+
+            #print(desc)    
+            datetime_tag=soup.find_all('span',attrs={'class':'blue-color ksl-time-stamp'})   
+            for t in datetime_tag:
+                datetime=t.find('none')
+                #print(type(datetime))
+            if datetime is not None:
+                date=datetime.text
+            else:
+                date="No Content"
+                print(str(i)+"+No Content:Datetime")
+                print(source_link)
+
+            #print(date)
+
+            news_body_tag=soup.find('div',attrs={'class':'article'})
+            if(news_body_tag):
+                x=re.findall("content-body-\\d+-\\d+",str(news_body_tag.contents))
+                if(x):
+                    news_body=soup.find('div',attrs={'id':x[0]})
+                    if news_body is not None:
+                        news_body=news_body.text
+                    else:
+                        news_body="No Content"
+                        print(str(i)+"+No Content :BODY")
+                        print(source_link)
+                else:
+                    news_body="No Content"
+                    print(str(i)+"+No Content :BODY")
+                    print(source_link)
+            else:
+                    news_body="No Content"
+                    print(str(i)+"+No Content :BODY")
+                    print(source_link)
+
+            #print(news_body)
+
+            #hindu_articles_500=[]
+            #hindu_articles_1000=[]
+            #hindu_articles_1500=[]
+            #hindu_articles_2000=[]
+            #hindu_articles_2500=[]
+            #hindu_articles_3000=[]
+            #hindu_articles_3500=[]
+            #hindu_articles_4000=[]   
+
+            hindu_news.append(dict(Heading=heading,Description=desc,DateTime=date,SourceLink="THEHINDU",NewsBody=news_body))
+
+            counter = [ 500, 1000, 1500 ,2000, 2500, 3000, 3500 ]
+            if i in counter:
+                print(i, 'great')
+
+    return hindu_news
+            
+###############################################################################################################################
+#	RUNNING CMDS
+###############################################################################################################################
+
+
+main_url="http://www.thehindu.com/archive/"
+# we will add all different archive urls to this main url. At every archive url system will type aadhar and search info link relateds
+chrome_path="D:/5.0 New Setups/chromedriver_win32/chromedriver"
+header = {'User-Agent': 'Mozilla/58.0.2 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.167 Safari/537.36'}
+
+keyword_list= ["aadhar"]
+driver = webdriver.Chrome(executable_path=chrome_path)
+wait = WebDriverWait(driver, 20)
+driver.get(main_url)
+search_elemnt = driver.find_element_by_name('q')
+search_elemnt.send_keys(keyword_list[0])
+search_elemnt.send_keys(Keys.RETURN)
+
+# below we are scraping all href tags of every news article from page 1
+news_articles_links=[]
+
+elem1=driver.find_elements_by_class_name("story-card-33-heading")
+for e in elem1:
+    e1=e.find_element_by_xpath("./a[@title]")
+    news_articles_links.append(e1.get_attribute("href"))
+    #print(e1.get_attribute("href"))
+
+
+links=get_all_hindu_pages_links(driver)
+
+# we are gng to get links of articlices from all other webpages
+news_articles_links=get_hindu_articles_hyperlinks(links,news_articles_links)
+hindu_news=[]
+#now we create files of indivodual articles
+hindu_news=scrape_all_hindu_news(news_articles_links,hindu_news)
+
+hindu=pd.DataFrame(hindu_news)
+
+hindu.to_csv('hindu_news.csv')
+
+
+
